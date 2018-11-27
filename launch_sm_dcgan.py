@@ -13,8 +13,7 @@ role = os.environ["SAGEMAKER_EXEC_ROLE"]
 
 instance_type = 'ml.p3.16xlarge' 
 
-inputs = "s3://sagemaker-us-east-1-903447430181/data/celebA"
-
+inputs = os.environ["DCGAN_INPUTS_DIR"]
 
 dcgan_estimator = PyTorch(entry_point='main-dcgan.py',
                           source_dir='src/',
