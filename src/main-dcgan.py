@@ -318,9 +318,9 @@ def _train(args):
             writer.add_scalar('D(G(z2))', D_G_z2, n_iter)
 
 
-            if i % 100 == 0:
+            if i % args.display_after == 0:
                 print_log(epoch + 1, args.epochs, i + 1, len(train_loader), args.lr,
-                          100, batch_time, data_time, Disc_losses, Gen_losses)
+                          args.display_after, batch_time, data_time, Disc_losses, Gen_losses)
                 batch_time.reset()
                 data_time.reset()
 
@@ -340,7 +340,7 @@ def _train(args):
 
             elif (i + 1) == len(train_loader):
                 print_log(epoch + 1, args.epochs, i + 1, len(train_loader), args.lr,
-                          (i + 1) % 100, batch_time, data_time, Disc_losses, Gen_losses)
+                          (i + 1) % args.display_after, batch_time, data_time, Disc_losses, Gen_losses)
                 batch_time.reset()
                 data_time.reset()
 

@@ -223,5 +223,7 @@ def parse():
     parser.add_argument('--data-dir', type=str, default=env.channel_input_dirs.get('training'))
     parser.add_argument('--num-gpus', type=int, default=env.num_gpus)
 
+    parser.add_argument('--display_after', type=int, default=100, help='The number of iterations after which images should be displayed')
+
     return parser.parse_args()
 

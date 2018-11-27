@@ -21,7 +21,9 @@ dcgan_estimator = PyTorch(entry_point='main-dcgan.py',
                           framework_version='1.0.0.dev',
                           train_instance_count=2,
                           train_instance_type=instance_type,
-                          hyperparameters={'epochs': 30},
+                          hyperparameters={'epochs': 100,
+                                'dist_backend': 'nccl',
+                                'display_after': 1000},
                           base_job_name='DCGAN')
 
 
