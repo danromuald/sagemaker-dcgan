@@ -51,13 +51,13 @@ def load_model(args):
                     out_size=args.channel_size,
                     ngf = args.ngf)
 
-    logger.info("Generator network: ")
-    logger.info(Gen)
+    print("Generator network: ")
+    print(Gen)
 
     # Create and initialize the Discriminator
     Disc = Discriminator(in_size=args.channel_size, ndf=args.ndf)
-    logger.info("Discriminator network: ")
-    logger.info(Disc)
+    print("Discriminator network: ")
+    print(Disc)
 
     return Gen, Disc
 
@@ -92,7 +92,7 @@ def _train(args):
         host_rank = args.hosts.index(args.current_host)
         os.environ['RANK'] = str(host_rank)
         dist.init_process_group(backend=args.dist_backend, rank=host_rank, world_size=world_size)
-        logger.info(
+        print(
             'Initialized the distributed environment: \'{}\' backend on {} nodes. '.format(
                 args.dist_backend,
                 dist.get_world_size()) + 'Current host rank is {}. Using cuda: {}. Number of gpus: {}'.format(
@@ -106,16 +106,16 @@ def _train(args):
     
     # 3. Load the dataset
 
-    logger.info("Loading the Celeb-A dataset")
+    print("Loading the Celeb-A dataset")
     
-
     train_loader = get_train_data_loader(args)
     
     # 4.a Load the model
 
-    logger.info("Loading the model")
+    print("Loading the model")
     Gen, Disc = load_model(args)
-    logger.info("Model loaded")
+    
+    print("Model loaded")
     
 
     # 4.b move the model to the right device
@@ -163,7 +163,6 @@ def _train(args):
 
  
     for epoch in range(0, args.epochs):
-        # running_loss = 0.0
         for i, (real_faces,_) in enumerate(train_loader):
             
             """
@@ -235,7 +234,8 @@ def _train(args):
             # Update the average meter for Discriminator losses
 
             Disc_losses.update(Disc_training_loss.item()) # .item() PyTorch 1.0
-
+            
+            
             # Discriminator training
 
             Disc.zero_grad()
@@ -279,25 +279,36 @@ def _train(args):
 
             batch_time.update(time.time() - end)
             end = time.time()
-
-            ### Update Avg meters
-
-            Disc_loss_list.append(Disc_losses.avg)
-            Gen_loss_list.append(Gen_losses.avg)
-            Disc_losses.reset()
-            Gen_losses.reset()
-
-            ### Log Summaries
+            
+            
+            ### Logging Summaries on Tensorboard
 
             n_iter = epoch * len(train_loader) + i
             D_x = Disc_real_output.data.mean()
             D_G_z1 = Disc_fake_output.data.mean()
             D_G_z2 = output.data.mean()
 
-            writer.add_scalar('Loss/Disc', Disc_training_loss.item(), n_iter)
-            writer.add_scalar('Loss/Gen', Gen_training_loss.item(), n_iter)
+            
+            # Average discriminator loss
+            writer.add_scalar('AverageLoss/Discriminator', Disc_losses.avg, n_iter)
+            
+            # Average Generator loss
+            writer.add_scalar('AverageLoss/Generator', Gen_losses.avg, n_iter)
+            
+            # Discriminator loss
+            writer.add_scalar('Loss/Discriminator', Disc_training_loss.item(), n_iter)
+            
+            # Generator loss
+            writer.add_scalar('Loss/Generator', Gen_training_loss.item(), n_iter)
+            
+            # Batch-average Discriminator predictions. 
+            #    For real images
             writer.add_scalar('D(x)', D_x, n_iter)
+            
+            #    For the fakes used to train the Discriminator
             writer.add_scalar('D(G(z1))', D_G_z1, n_iter)
+            
+            #    For the fakes used to train the Generator
             writer.add_scalar('D(G(z2))', D_G_z2, n_iter)
 
 
@@ -315,16 +326,22 @@ def _train(args):
                     normalize=True)
                 writer.add_image('fake_samples', vutils.make_grid(fake_faces, normalize=True), n_iter)
 
+            
+        ### Update Avg meters after every epoch
 
+        Disc_loss_list.append(Disc_losses.avg)
+        Gen_loss_list.append(Gen_losses.avg)
+        Disc_losses.reset()
+        Gen_losses.reset()
 
-    # Plot the generated images and loss curve
-    plot_result(Gen, fixed_noise, args.image_size, epoch + 1, env.output_data_dir, is_gray=False)
+        # Plot the generated images and loss curve
+        plot_result(Gen, fixed_noise, args.image_size, epoch + 1, env.output_data_dir, is_gray=False)
 
-    plot_loss(Disc_loss_list, Gen_loss_list, epoch + 1, args.epochs, env.output_data_dir)
+        plot_loss(Disc_loss_list, Gen_loss_list, epoch + 1, args.epochs, env.output_data_dir)
 
 
     create_gif(args.epochs, env.output_data_dir)
-    logger.info('Finished Training')
+    print('Finished Training')
 
 
     return _save_model(Gen, Disc, args.model_dir)
@@ -337,31 +354,8 @@ def _save_model(gen, disc, model_dir):
     torch.save(gen.cpu().state_dict(), os.path.join(model_dir, 'Generator.pth'))
     torch.save(disc.cpu().state_dict(), os.path.join(model_dir, 'Discriminator.pth'))
 
-    
-
-# For deployment
-
-def model_fn(model_dir):
-    logger.info('model_fn')
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    Gen, Disc = load_model(args)
-
-    if torch.cuda.device_count() > 1:
-        logger.info("Gpu count: {}".format(torch.cuda.device_count()))
-        Gen = nn.DataParallel(Gen)
-        Disc = nn.DataParallel(Disc)
-
-    with open(os.path.join(model_dir, 'Generator.pth'), 'rb') as f:
-        Gen.load_state_dict(torch.load(f))
-
-    with open(os.path.join(model_dir, 'Discriminator.pth'), 'rb') as f:
-        Disc.load_state_dict(torch.load(f))
-
-    return Gen.to(device), Disc.to(device)
-
 
 if __name__ == '__main__':
     
     args = parse()
-#     _setup()
     _train(args)

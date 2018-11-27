@@ -132,16 +132,16 @@ def plot_loss(d_loss, g_loss, epoch, epochs, save_dir):
     plt.savefig(os.path.join(save_dir, 'DCGAN_loss_epoch_{}.png'.format(epoch)))
     plt.close()
 
-def plot_result(G, fixed_noise, image_size, num_epoch, save_dir, fig_size=(8, 8), is_gray=False):
+def plot_result(G, fixed_noise, image_size, epoch, save_dir, fig_size=(8, 8), is_gray=False):
 
     G.eval()
-    generate_images = G(fixed_noise)
+    generated_images = G(fixed_noise)
     G.train()
     
     n_rows = n_cols = 8
     fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size)
     
-    for ax, img in zip(axes.flatten(), generate_images):
+    for ax, img in zip(axes.flatten(), generated_images):
         ax.axis('off')
         ax.set_adjustable('box-forced')
         if is_gray:
@@ -151,21 +151,21 @@ def plot_result(G, fixed_noise, image_size, num_epoch, save_dir, fig_size=(8, 8)
             img = (((img - img.min()) * 255) / (img.max() - img.min())).cpu().data.numpy().transpose(1, 2, 0).astype(np.uint8)
             ax.imshow(img, cmap=None, aspect='equal')
     plt.subplots_adjust(wspace=0, hspace=0)
-    title = 'Epoch {0}'.format(num_epoch)
+    title = 'Epoch {0}'.format(epoch)
     fig.text(0.5, 0.04, title, ha='center')
     
-    plt.savefig(os.path.join(save_dir, 'DCGAN_epoch_{}.png'.format(num_epoch)))
+    plt.savefig(os.path.join(save_dir, 'DCGAN_epoch_{}.png'.format(epoch)))
     plt.close()
 
-def create_gif(epoches, save_dir):
+def create_gif(epochs, save_dir):
     
     images = []
-    for i in range(1, epoches + 1):
+    for i in range(1, epochs + 1):
         images.append(imageio.imread(os.path.join(save_dir, 'DCGAN_epoch_{}.png'.format(i))))
     imageio.mimsave(os.path.join(save_dir, 'result.gif'), images, fps=5)
     
     images = []
-    for i in range(1, epoches + 1):
+    for i in range(1, epochs + 1):
         images.append(imageio.imread(os.path.join(save_dir, 'DCGAN_loss_epoch_{}.png'.format(i))))
     imageio.mimsave(os.path.join(save_dir, 'result_loss.gif'), images, fps=5)
 
@@ -174,16 +174,16 @@ def save_checkpoint(state, filename='checkpoint'):
     torch.save(state, filename + '.pth.tar')
 
 
-def print_log(epoch, epoches, iteration, iters, learning_rate,
-              display, batch_time, data_time, D_losses, G_losses):
+def print_log(epoch, epochs, iteration, iters, learning_rate,
+              display, batch_time, data_time, Disc_losses, Gen_losses):
     print('epoch: [{}/{}] iteration: [{}/{}]\t'
-          'Learning rate: {}').format(epoch, epoches, iteration, iters, learning_rate)
+          'Learning rate: {}').format(epoch, epochs, iteration, iters, learning_rate)
     print('Time {batch_time.sum:.3f}s / {0}iters, ({batch_time.avg:.3f})\t'
           'Data load {data_time.sum:.3f}s / {0}iters, ({data_time.avg:3f})\n'
           'Loss_D = {loss_D.val:.8f} (ave = {loss_D.avg:.8f})\n'
           'Loss_G = {loss_G.val:.8f} (ave = {loss_G.avg:.8f})\n'.format(
               display, batch_time=batch_time,
-              data_time=data_time, loss_D=D_losses, loss_G=G_losses))
+              data_time=data_time, loss_D=Disc_losses, loss_G=Gen_losses))
     print(time.strftime('%Y-%m-%d %H:%M:%S -----------------------------------------------------------------------------------------------------------------\n', time.localtime()))
 
 

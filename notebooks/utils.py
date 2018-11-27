@@ -11,8 +11,42 @@ import numpy as np
 import time
 from PIL import Image
 import imageio
+import importlib
+import pip
+import subprocess
+import argparse
 
 
+import logging
+import sagemaker_containers
+
+env = sagemaker_containers.training_env()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+# Required to install additional libraries like tensorflow, tensorboard, etc..
+def _install_and_import(package):
+    try:
+        importlib.import_module(package)
+    except ImportError:
+        logger.warning('Could not find required package {}, attempting to install...'.format(package))
+        subprocess.call([sys.executable, '-m', 'pip', 'install', package])
+    finally:
+        globals()[package] = importlib.import_module(package)
+        logger.info('Successfully installed and imported {}'.format(package))
+    
+
+def install_requirements():
+    with open(os.path.join(env.model_dir,'requirements.txt'), 'r') as f:
+        packages = f.read()
+    
+    packages = packages.split()[:-1]
+    
+    for package in packages:
+        _install_and_import(package)
+        
+#     
 class AverageMeter(object):
     """ Computes ans stores the average and current value"""
     def __init__(self):
@@ -83,31 +117,31 @@ def pil_loader(path):
 
 
 
-def plot_loss(d_loss, g_loss, num_epoch, epoches, save_dir):
+def plot_loss(d_loss, g_loss, epoch, epochs, save_dir):
     
     fig, ax = plt.subplots()
-    ax.set_xlim(0,epoches + 1)
+    ax.set_xlim(0,epochs + 1)
     ax.set_ylim(0, max(np.max(g_loss), np.max(d_loss)) * 1.1)
-    plt.xlabel('Epoch {}'.format(num_epoch))
+    plt.xlabel('Epoch {}'.format(epoch))
     plt.ylabel('Loss')
     
-    plt.plot([i for i in range(1, num_epoch + 1)], d_loss, label='Discriminator', color='red', linewidth=3)
-    plt.plot([i for i in range(1, num_epoch + 1)], g_loss, label='Generator', color='mediumblue', linewidth=3)
+    plt.plot([i for i in range(1, epoch + 1)], d_loss, label='Discriminator', color='red', linewidth=3)
+    plt.plot([i for i in range(1, epoch + 1)], g_loss, label='Generator', color='mediumblue', linewidth=3)
     
     plt.legend()
-    plt.savefig(os.path.join(save_dir, 'DCGAN_loss_epoch_{}.png'.format(num_epoch)))
+    plt.savefig(os.path.join(save_dir, 'DCGAN_loss_epoch_{}.png'.format(epoch)))
     plt.close()
 
-def plot_result(G, fixed_noise, image_size, num_epoch, save_dir, fig_size=(8, 8), is_gray=False):
+def plot_result(G, fixed_noise, image_size, epoch, save_dir, fig_size=(8, 8), is_gray=False):
 
     G.eval()
-    generate_images = G(fixed_noise)
+    generated_images = G(fixed_noise)
     G.train()
     
     n_rows = n_cols = 8
     fig, axes = plt.subplots(n_rows, n_cols, figsize=fig_size)
     
-    for ax, img in zip(axes.flatten(), generate_images):
+    for ax, img in zip(axes.flatten(), generated_images):
         ax.axis('off')
         ax.set_adjustable('box-forced')
         if is_gray:
@@ -117,21 +151,21 @@ def plot_result(G, fixed_noise, image_size, num_epoch, save_dir, fig_size=(8, 8)
             img = (((img - img.min()) * 255) / (img.max() - img.min())).cpu().data.numpy().transpose(1, 2, 0).astype(np.uint8)
             ax.imshow(img, cmap=None, aspect='equal')
     plt.subplots_adjust(wspace=0, hspace=0)
-    title = 'Epoch {0}'.format(num_epoch)
+    title = 'Epoch {0}'.format(epoch)
     fig.text(0.5, 0.04, title, ha='center')
     
-    plt.savefig(os.path.join(save_dir, 'DCGAN_epoch_{}.png'.format(num_epoch)))
+    plt.savefig(os.path.join(save_dir, 'DCGAN_epoch_{}.png'.format(epoch)))
     plt.close()
 
-def create_gif(epoches, save_dir):
+def create_gif(epochs, save_dir):
     
     images = []
-    for i in range(1, epoches + 1):
+    for i in range(1, epochs + 1):
         images.append(imageio.imread(os.path.join(save_dir, 'DCGAN_epoch_{}.png'.format(i))))
     imageio.mimsave(os.path.join(save_dir, 'result.gif'), images, fps=5)
     
     images = []
-    for i in range(1, epoches + 1):
+    for i in range(1, epochs + 1):
         images.append(imageio.imread(os.path.join(save_dir, 'DCGAN_loss_epoch_{}.png'.format(i))))
     imageio.mimsave(os.path.join(save_dir, 'result_loss.gif'), images, fps=5)
 
@@ -140,14 +174,53 @@ def save_checkpoint(state, filename='checkpoint'):
     torch.save(state, filename + '.pth.tar')
 
 
-def print_log(epoch, epoches, iteration, iters, learning_rate,
-              display, batch_time, data_time, D_losses, G_losses):
+def print_log(epoch, epochs, iteration, iters, learning_rate,
+              display, batch_time, data_time, Disc_losses, Gen_losses):
     print('epoch: [{}/{}] iteration: [{}/{}]\t'
-          'Learning rate: {}').format(epoch, epoches, iteration, iters, learning_rate)
+          'Learning rate: {}').format(epoch, epochs, iteration, iters, learning_rate)
     print('Time {batch_time.sum:.3f}s / {0}iters, ({batch_time.avg:.3f})\t'
           'Data load {data_time.sum:.3f}s / {0}iters, ({data_time.avg:3f})\n'
           'Loss_D = {loss_D.val:.8f} (ave = {loss_D.avg:.8f})\n'
           'Loss_G = {loss_G.val:.8f} (ave = {loss_G.avg:.8f})\n'.format(
               display, batch_time=batch_time,
-              data_time=data_time, loss_D=D_losses, loss_G=G_losses))
+              data_time=data_time, loss_D=Disc_losses, loss_G=Gen_losses))
     print(time.strftime('%Y-%m-%d %H:%M:%S -----------------------------------------------------------------------------------------------------------------\n', time.localtime()))
+
+
+def parse():
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--workers', type=int, default=6, metavar='W',
+                        help='number of data loading workers (default: 6)')
+
+    parser.add_argument('--epochs', type=int, default=25, metavar='E',
+                        help='number of total epochs to run (default: 25)')
+
+    parser.add_argument('--lr', type=float, default=0.0002, metavar='LR',
+                        help='initial learning rate (default: 0.002)')
+
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='M', help='momentum (default: 0.9)')
+
+    parser.add_argument('--dist_backend', type=str, default='gloo', help='distributed backend (default: gloo)')
+
+    parser.add_argument('--batch_size', type=int, default=128, help='input batch size')
+    parser.add_argument('--image_size', type=int, default=64, help='the height / width of the input image to network')
+    parser.add_argument('--z_size', type=int, default=100, help='size of the latent z vector')
+    parser.add_argument('--ngf', type=int, default=128)
+    parser.add_argument('--ndf', type=int, default=128)
+    parser.add_argument('--channel_size', type=int, default=3, help='The number of channels in the images')
+
+    parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
+    parser.add_argument('--manualSeed', type=int, help='manual seed')
+
+
+    
+    parser.add_argument('--hosts', type=list, default=env.hosts)
+    parser.add_argument('--current-host', type=str, default=env.current_host)
+    parser.add_argument('--model-dir', type=str, default=env.model_dir)
+    parser.add_argument('--data-dir', type=str, default=env.channel_input_dirs.get('training'))
+    parser.add_argument('--num-gpus', type=int, default=env.num_gpus)
+
+    return parser.parse_args()
+
