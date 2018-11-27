@@ -177,14 +177,15 @@ def save_checkpoint(state, filename='checkpoint'):
 def print_log(epoch, epochs, iteration, iters, learning_rate,
               display, batch_time, data_time, Disc_losses, Gen_losses):
     print('epoch: [{}/{}] iteration: [{}/{}]\t'
-          'Learning rate: {}').format(epoch, epochs, iteration, iters, learning_rate)
+          'Learning rate: {}'.format(epoch, epochs, iteration, iters, learning_rate))
+
     print('Time {batch_time.sum:.3f}s / {0}iters, ({batch_time.avg:.3f})\t'
           'Data load {data_time.sum:.3f}s / {0}iters, ({data_time.avg:3f})\n'
           'Loss_D = {loss_D.val:.8f} (ave = {loss_D.avg:.8f})\n'
           'Loss_G = {loss_G.val:.8f} (ave = {loss_G.avg:.8f})\n'.format(
               display, batch_time=batch_time,
               data_time=data_time, loss_D=Disc_losses, loss_G=Gen_losses))
-    print(time.strftime('%Y-%m-%d %H:%M:%S -----------------------------------------------------------------------------------------------------------------\n', time.localtime()))
+    print(time.strftime('%Y-%m-%d %H:%M:%S --------------------------------------------------------------------------------------------------\n', time.localtime()))
 
 
 def parse():

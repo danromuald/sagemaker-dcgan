@@ -101,11 +101,11 @@ def download_celeb_a(dirpath):
   os.rename(os.path.join(dirpath, zip_dir), os.path.join(dirpath, data_dir))
 
 
-def prepare_data_dir(path = './data'):
+def prepare_data_dir(path = '../data'):
   if not os.path.exists(path):
     os.mkdir(path)
 
 if __name__ == '__main__':
   prepare_data_dir()
-  download_celeb_a('./data')
+  download_celeb_a('../data')
   

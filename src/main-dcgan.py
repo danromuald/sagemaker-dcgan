@@ -161,6 +161,7 @@ def _train(args):
     Disc_loss_list = []
     Gen_loss_list = []
 
+    print("Starting training loop.")
  
     for epoch in range(0, args.epochs):
         for i, (real_faces,_) in enumerate(train_loader):
@@ -280,13 +281,18 @@ def _train(args):
             batch_time.update(time.time() - end)
             end = time.time()
             
-            
             ### Logging Summaries on Tensorboard
 
             n_iter = epoch * len(train_loader) + i
             D_x = Disc_real_output.data.mean()
             D_G_z1 = Disc_fake_output.data.mean()
             D_G_z2 = output.data.mean()
+
+            # Average batch time
+            writer.add_scalar('AverageBatchTime', batch_time.avg, n_iter)
+
+            # Average data loading time
+            writer.add_scalar('AverageDataTime', data_time.avg, n_iter)
 
             
             # Average discriminator loss
@@ -313,6 +319,11 @@ def _train(args):
 
 
             if i % 100 == 0:
+                print_log(epoch + 1, args.epochs, i + 1, len(train_loader), args.lr,
+                          100, batch_time, data_time, Disc_losses, Gen_losses)
+                batch_time.reset()
+                data_time.reset()
+
                 faces = real_faces.to('cpu')
                 fake_faces = Gen_output.to('cpu')
 
@@ -324,9 +335,16 @@ def _train(args):
                 vutils.save_image(fake_faces,
                     '%s/fake_samples_epoch_%03d.png' % (env.output_data_dir, epoch),
                     normalize=True)
+                    
                 writer.add_image('fake_samples', vutils.make_grid(fake_faces, normalize=True), n_iter)
 
-            
+            elif (i + 1) == len(train_loader):
+                print_log(epoch + 1, args.epochs, i + 1, len(train_loader), args.lr,
+                          (i + 1) % 100, batch_time, data_time, Disc_losses, Gen_losses)
+                batch_time.reset()
+                data_time.reset()
+
+
         ### Update Avg meters after every epoch
 
         Disc_loss_list.append(Disc_losses.avg)
