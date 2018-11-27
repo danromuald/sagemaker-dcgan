@@ -1,5 +1,7 @@
 import torch
 import torch.utils.data as data
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -10,62 +12,6 @@ import time
 from PIL import Image
 import imageio
 
-
-
-class MydataFolder(data.Dataset):
-    """A data loader where the list is arranged in this way:
-        
-        dog/1.jpg 1
-        dog/2.jpg 1
-        dog/3.jpg 1
-            .
-            .
-            .
-        cat/1.jpg 2
-        cat/2.jpg 2
-            .
-            .
-            .
-        path      label
-    
-    Args:
-      
-        root (string): Root directory path.
-        transform (callable, optional): A function/transform that takes in an PIL image
-            and returns a transformed version
-    """
-
-    def __init__(self, filename, root=None, transform=None):
-
-        lists = read_data_file(filename)
-        if len(lists) == 0:
-            raise(RuntimeError('Found 0 images in subfolders\n'))
-
-        self.root = root
-        self.transform = transform
-        self.lists = lists
-        self.load = pil_loader
-
-    def __getitem__(self, index):
-        """
-        Args:
-            index (int): index
-    
-        Returns:
-            tuple: (image, label) where label is the clas of the image
-        """
-    
-        path, label = self.lists[index]
-        img = self.load(path)
-    
-        if self.transform is not None:
-            img = self.transform(img)
-        
-        return img, label
-    
-    def __len__(self):
-        
-        return len(self.lists)
 
 class AverageMeter(object):
     """ Computes ans stores the average and current value"""
@@ -85,20 +31,23 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def _get_transform(args):
-    return transforms.Compose([transforms.Scale(args.image_size),
+def _get_transform():
+    image_size = 64
+    return transforms.Compose([transforms.Scale(image_size),
                         transforms.ToTensor(),
                         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
                 ])
 
 def get_train_data_loader(args):
-    transform = _get_transform(args)
+    transform = _get_transform()
 
     train_loader = torch.utils.data.DataLoader(
-            MydataFolder(args.data_dir,
-                transform=_get_transform(args),
-            batch_size=args.batch_size, shuffle=True,
-            num_workers=args.workers, pin_memory=True))
+             datasets.ImageFolder(args.data_dir,
+                transform=transform),
+                batch_size=args.batch_size, shuffle=True,
+              num_workers=args.workers, pin_memory=True)
+    
+    return train_loader
 
 
 

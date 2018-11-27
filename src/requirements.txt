@@ -1,0 +1,7 @@
+tensorflow
+tensorflow-gpu
+tensorboard
+tensorboard-pytorch
+tensorboardX
+matplotlib
+imageio
